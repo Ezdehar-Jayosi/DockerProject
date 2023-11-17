@@ -1,13 +1,38 @@
 import time
 from pathlib import Path
+
+import botocore
 from flask import Flask, request
 from detect import run
 import uuid
 import yaml
 from loguru import logger
 import os
+from pymongo import MongoClient
+import boto3
 
-images_bucket = os.environ['BUCKET_NAME']
+try:
+    images_bucket = os.environ['BUCKET_NAME']
+    aws_access_key_id = os.environ.get('AWS_ACCESS_KEY_ID')
+    aws_secret_access_key = os.environ.get('AWS_SECRET_ACCESS_KEY')
+except KeyError as e:
+    logger.error(f"Missing environment variable: {e}")
+    exit(1)
+
+
+# Set up AWS S3 client
+s3 = boto3.client('s3', aws_access_key_id, aws_secret_access_key)
+
+# Set up MongoDB client
+try:
+    mongo_uri = 'mongodb://mongo1:27017,mongo2:27018/,mongo3:27019/'
+    mongo_client = MongoClient(mongo_uri, replicaSet='myReplicaSet')
+    db = mongo_client['EDS']
+    collection = db['ECollection']
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {e}")
+    exit(1)
+
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
@@ -26,8 +51,16 @@ def predict():
 
     # TODO download img_name from S3, store the local image path in original_img_path
     #  The bucket name should be provided as an env var BUCKET_NAME.
-    original_img_path = ...
-
+    original_img_path = f'{img_name}'
+    try:
+        # Download the image from S3
+        s3.download_file(images_bucket, img_name, original_img_path)
+        except botocore.exceptions.ClientError as e:
+        if e.response['Error']['Code'] == "404":
+            logger.error("The image does not found")
+        else:
+            logger.error(e)
+            raise
     logger.info(f'prediction: {prediction_id}/{original_img_path}. Download img completed')
 
     # Predicts the objects in the image
