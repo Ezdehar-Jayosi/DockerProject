@@ -19,7 +19,6 @@ except KeyError as e:
     logger.error(f"Missing environment variable: {e}")
     exit(1)
 
-
 # Set up AWS S3 client
 s3 = boto3.client('s3', aws_access_key_id, aws_secret_access_key)
 
@@ -33,11 +32,25 @@ except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {e}")
     exit(1)
 
-
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
 
 app = Flask(__name__)
+
+
+@app.before_first_request
+def before_first_request():
+    # This function is called before the first request is processed.
+    logger.info("Connecting to MongoDB")
+
+
+@app.teardown_appcontext
+def teardown_appcontext(exception=None):
+    # This function is called when the application context is popped.
+    # It ensures that the MongoDB connection is closed.
+    mongo_client.close()
+    logger.info("MongoDB connection closed")
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
@@ -80,6 +93,13 @@ def predict():
     predicted_img_path = Path(f'static/data/{prediction_id}/{original_img_path}')
 
     # TODO Uploads the predicted image (predicted_img_path) to S3 (be careful not to override the original image).
+    # s3_prediction_img_path = f'{img_name.split(".")[0]}_prediction.jpg'
+    try:
+        s3_client.upload_file(str(predicted_img_path), images_bucket, f'{img_name.split(".")[0]}_prediction.jpg')
+    except Exception as e:
+        logger.error(e)
+        raise
+        return
 
     # Parse prediction labels and create a summary
     pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
@@ -106,7 +126,7 @@ def predict():
         }
 
         # TODO store the prediction_summary in MongoDB
-
+        collection.insert_one(prediction_summary)
         return prediction_summary
     else:
         return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404
