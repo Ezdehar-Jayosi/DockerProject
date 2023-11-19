@@ -74,12 +74,36 @@ class QuoteBot(Bot):
 
 
 class ObjectDetectionBot(Bot):
-    def handle_message(self, msg):
-        logger.info(f'Incoming message: {msg}')
+   def handle_message(self, msg):
+       logger.info(f'Incoming message: {msg}')
 
-        if self.is_current_msg_photo(msg):
-            pass
-            # TODO download the user photo (utilize download_user_photo)
-            # TODO upload the photo to S3
-            # TODO send a request to the `yolo5` service for prediction
-            # TODO send results to the Telegram end-user
+       if self.is_current_msg_photo(msg):
+           img_path = self.download_user_photo(msg)
+
+           # TODO: Upload the photo to S3
+           s3_url = self.upload_to_s3(img_path)
+
+           # TODO: Send a request to the `yolo5` service for prediction
+           prediction_result = self.send_yolo5_request(s3_url)
+
+           # TODO: Send results to the Telegram end-user
+           self.send_text(msg['chat']['id'], f'Object Detection Results: {prediction_result}')
+
+   def upload_to_s3(self, img_path):
+       # TODO: Implement the logic to upload the image to S3
+       # Example: You can use a library like boto3 to upload the image to your S3 bucket
+       # Replace the placeholders with your actual S3 credentials and bucket information
+       # s3.upload_file(img_path, 'your_bucket_name', 'your_s3_key')
+
+       # Placeholder: Return a dummy S3 URL for demonstration purposes
+       return f'https://your-s3-bucket.s3.amazonaws.com/{os.path.basename(img_path)}'
+
+   def send_yolo5_request(self, s3_url):
+       # TODO: Implement the logic to send a request to the yolo5 service
+       # Example: You can use the requests library to perform an HTTP POST request
+       # Replace the URL with the actual endpoint of your yolo5 service
+       yolo5_url = 'http://yolo5-service-endpoint/predict'
+       response = requests.post(yolo5_url, json={'s3_url': s3_url})
+
+       # Placeholder: Return a dummy prediction result for demonstration purposes
+       return response.json()['predictions']
