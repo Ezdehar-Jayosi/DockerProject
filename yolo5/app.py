@@ -2,8 +2,8 @@ import time
 from pathlib import Path
 
 import botocore
-from flask import Flask, request
 from detect import run
+from flask import Flask, request
 import uuid
 import yaml
 from loguru import logger
@@ -137,4 +137,6 @@ def predict():
 
 
 if __name__ == "__main__":
+    for rule in app.url_map.iter_rules():
+        print(rule)
     app.run(host='0.0.0.0', port=8081)

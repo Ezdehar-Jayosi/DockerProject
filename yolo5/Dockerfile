@@ -1,5 +1,6 @@
 FROM ultralytics/yolov5:latest-cpu
 WORKDIR /usr/src/app
+ENV PYTHONPATH=/usr/src/app:$PYTHONPATH
 RUN pip install --upgrade pip
 COPY requirements.txt .
 RUN pip install -r requirements.txt

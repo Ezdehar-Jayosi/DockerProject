@@ -1,7 +1,9 @@
 flask
 pyyaml
 loguru
-detect
+
+
+
 boto3
 pymongo
 
