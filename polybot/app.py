@@ -22,6 +22,5 @@ def webhook():
 
 
 if __name__ == "__main__":
-    bot = QuoteBot(TELEGRAM_TOKEN, TELEGRAM_APP_URL)
-
+    bot = ObjectDetectionBot(TELEGRAM_TOKEN, TELEGRAM_APP_URL)
     app.run(host='0.0.0.0', port=8443)

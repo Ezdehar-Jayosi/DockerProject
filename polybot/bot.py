@@ -87,8 +87,8 @@ class ObjectDetectionBot(Bot):
         self.s3_resource = boto3.resource(
             's3',
             region_name=self.aws_region,
-            aws_access_key_id=os.environ['S3_ACCESS_KEY'],
-            aws_secret_access_key=os.environ['S3_SECRET_KEY']
+            aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
         )
 
     def format_prediction_results(self, prediction_result):
@@ -109,49 +109,62 @@ class ObjectDetectionBot(Bot):
 
         return f"Detected objects: {formatted_results}"
 
+    def handle_message(self, msg):
+        try:
+            logger.info(f'Incoming message: {msg}')
 
-def handle_message(self, msg):
-    logger.info(f'Incoming message: {msg}')
+            if self.is_current_msg_photo(msg):
+                logger.info('Message is a photo.')
+                img_path = self.download_user_photo(msg)
 
-    if self.is_current_msg_photo(msg):
-        img_path = self.download_user_photo(msg)
+                # Upload the photo to S3
+                s3_url = self.upload_to_s3(img_path)
+                logger.info(f'Successfully uploaded to S3: {s3_url}')
 
-        # Upload the photo to S3
-        s3_url = self.upload_to_s3(img_path)
+                # Send a request to the `yolo5` service for prediction
+                prediction_result = self.send_yolo5_request(s3_url)
+                logger.info(f'YOLOm prediction result: {prediction_result}')
 
-        # Send a request to the `yolo5` service for prediction
-        prediction_result = self.send_yolo5_request(s3_url)
+                # Format the prediction results for the PolyBot
+                formatted_results = self.format_prediction_results(prediction_result)
 
-        # Format the prediction results for the PolyBot
-        formatted_results = self.format_prediction_results(prediction_result)
+                # Send the formatted results to the Telegram end-user
+                self.send_text(msg['chat']['id'], formatted_results)
+            else:
+                logger.info('Message is not a photo.')
+        except Exception as e:
+            # Log the exception
+            logger.error(f'Error handling message: {e}')
 
-        # Send the formatted results to the Telegram end-user
-        self.send_text(msg['chat']['id'], formatted_results)
+            # Send an error message to the user
+            self.send_text(msg['chat']['id'],
+                           'An error occurred while processing your request. Please try again later.')
+        finally:
+            logger.info('Exiting handle_message.')
+
+    def upload_to_s3(self, img_path):
+        # TODO: Implement the logic to upload the image to S3
+        # Example: You can use a library like boto3 to upload the image to your S3 bucket
+        # Replace the placeholders with your actual S3 credentials and bucket information
+        # s3.upload_file(img_path, 'your_bucket_name', 'your_s3_key')
+        try:
+            self.s3_resource.Bucket(self.Bucket_Name).put_object(
+                Key=os.path.basename(img_path),
+                Body=open(img_path, 'rb')
+            )
+        except Exception as e:
+            logger.error(e)
+            raise
+            return
+        return os.path.basename(img_path)
 
 
-def upload_to_s3(self, img_path):
-    # TODO: Implement the logic to upload the image to S3
-    # Example: You can use a library like boto3 to upload the image to your S3 bucket
-    # Replace the placeholders with your actual S3 credentials and bucket information
-    # s3.upload_file(img_path, 'your_bucket_name', 'your_s3_key')
-    try:
-        self.s3_resource.Bucket(self.Bucket_Name).put_object(
-            Key=os.path.basename(img_path),
-            Body=open(img_path, 'rb')
-        )
-    except Exception as e:
-        logger.error(e)
-        raise
-        return
-    return os.path.basename(img_path)
+    def send_yolo5_request(self, s3_url):
+        # TODO: Implement the logic to send a request to the yolo5 service
+        yolo5_url = 'http://yolo5:8081/predict'
+        response = requests.post(yolo5_url, json={'imgName': s3_url})
 
-
-def send_yolo5_request(self, s3_url):
-    # TODO: Implement the logic to send a request to the yolo5 service
-    yolo5_url = 'http://yolo5:8081/predict'
-    response = requests.post(yolo5_url, json={'imgName': s3_url})
-
-    if response.status_code == 200:
-        return response.json()
-    else:
-        response.raise_for_status()
+        if response.status_code == 200:
+            return response.json()
+        else:
+            response.raise_for_status()
