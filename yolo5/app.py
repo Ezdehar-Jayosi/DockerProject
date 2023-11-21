@@ -98,15 +98,22 @@ def predict():
 
     # TODO Uploads the predicted image (predicted_img_path) to S3 (be careful not to override the original image).
     # s3_prediction_img_path = f'{img_name.split(".")[0]}_prediction.jpg'
-    try:
-        s3.upload_file(str(predicted_img_path), images_bucket, f'{img_name.split(".")[0]}_prediction.jpg')
-    except Exception as e:
-        logger.error(e)
-        raise
+    if predicted_img_path.exists():
+        try:
+            s3.upload_file(str(predicted_img_path), images_bucket, f'{img_name.split(".")[0]}_prediction.jpg')
+        except Exception as e:
+            logger.error(e)
+            raise
+            return
+    else:
+        logger.error(f'Prediction image does not exist at: {predicted_img_path}')
+        # handle the error or return an appropriate response
         return
 
     # Parse prediction labels and create a summary
     pred_summary_path = Path(f'static/data/{prediction_id}/labels/{original_img_path.split(".")[0]}.txt')
+
+
     if pred_summary_path.exists():
         with open(pred_summary_path) as f:
             labels = f.read().splitlines()
@@ -124,16 +131,21 @@ def predict():
         prediction_summary = {
             'prediction_id': prediction_id,
             'original_img_path': original_img_path,
-            'predicted_img_path': predicted_img_path,
+            'predicted_img_path': str(predicted_img_path),
             'labels': labels,
             'time': time.time()
         }
 
         # TODO store the prediction_summary in MongoDB
-        collection.insert_one(prediction_summary)
+        # Modify this line in your Flask app code
+        collection.insert_one({"img_name": str(predicted_img_path), "predictions": prediction_summary})
+
         return prediction_summary
     else:
-        return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404
+        #return f'prediction: {prediction_id}/{original_img_path}. prediction result not found', 404
+        return [{
+            'class': "", 'cx': 0, 'cy': 0, 'width': 0, 'height': 0
+        }]
 
 
 if __name__ == "__main__":
