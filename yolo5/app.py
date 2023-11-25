@@ -71,7 +71,11 @@ def predict():
     original_img_path = f'{img_name}'
     try:
         # Download the image from S3
-        s3.download_file(images_bucket, img_name, original_img_path)
+        if img_name is not None:
+            s3.download_file(images_bucket, img_name, original_img_path)
+        else:
+            # Log an error or handle the situation where img_name is None
+            logger.error("Image name is None. Cannot download file.")
     except botocore.exceptions.ClientError as e:
         if e.response['Error']['Code'] == "404":
             logger.error("The image does not found")

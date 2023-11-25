@@ -1,5 +1,6 @@
 import boto3
 import telebot
+from boto3 import s3
 from loguru import logger
 import os
 import time
@@ -82,14 +83,16 @@ class ObjectDetectionBot(Bot):
         Bot.__init__(self, token, telegram_chat_url)
 
         self.Bucket_Name = os.environ['BUCKET_NAME']
-        self.aws_region = os.environ['REGION']
+        self.REGION = os.environ['REGION']
         # self.s3_client = boto3.client('s3', aws_access_key_id=self.s3_access_key, aws_secret_access_key=self.s3_secret_key)
-        self.s3_resource = boto3.resource(
+        """"" self.s3_resource = boto3.resource(
             's3',
             region_name=self.aws_region,
             aws_access_key_id=os.environ.get('AWS_ACCESS_KEY_ID'),
             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
-        )
+        )"""""
+        # Set up AWS S3 client
+        self.s3 = boto3.client('s3', os.environ.get('AWS_ACCESS_KEY_ID'), os.environ.get('AWS_SECRET_ACCESS_KEY'))
 
     def format_prediction_results(self, prediction_result):
         # Extract relevant information from the prediction result
@@ -108,6 +111,28 @@ class ObjectDetectionBot(Bot):
         formatted_results = ", ".join(f"{obj}: {count}" for obj, count in object_counts.items())
 
         return f"Detected objects: {formatted_results}"
+
+    def download_user_photo(self, msg):
+        if not self.is_current_msg_photo(msg):
+            raise RuntimeError(f'Message content of type \'photo\' expected')
+
+        file_info = self.telegram_bot_client.get_file(msg['photo'][-1]['file_id'])
+        data = self.telegram_bot_client.download_file(file_info.file_path)
+        file_unique_id = msg['photo'][-1]['file_unique_id']
+        local_file_path = f'photos/{file_unique_id}.jpg'
+
+        try:
+            # Create the "photos" directory if it doesn't exist
+            os.makedirs('photos', exist_ok=True)
+
+            with open(local_file_path, 'wb') as photo:
+                photo.write(data)
+        except Exception as e:
+            # Log the exception and handle it appropriately
+            logger.error(f'Error saving file locally: {e}')
+            raise
+
+        return local_file_path
 
     def handle_message(self, msg):
         try:
@@ -143,26 +168,27 @@ class ObjectDetectionBot(Bot):
             logger.info('Exiting handle_message.')
 
     def upload_to_s3(self, img_path):
-        # TODO: Implement the logic to upload the image to S3
-        # Example: You can use a library like boto3 to upload the image to your S3 bucket
-        # Replace the placeholders with your actual S3 credentials and bucket information
-        # s3.upload_file(img_path, 'your_bucket_name', 'your_s3_key')
+        """
+        Uploads the image file to S3.
+        :param img_path: Local path of the image file
+        :return: S3 URL of the uploaded file
+        """
         try:
-            self.s3_resource.Bucket(self.Bucket_Name).put_object(
-                Key=os.path.basename(img_path),
-                Body=open(img_path, 'rb')
-            )
+            # Use the full path of the local file
+            self.s3.upload_file(img_path, self.Bucket_Name, os.path.basename(img_path))
         except Exception as e:
-            logger.error(e)
+            logger.error(f'Error uploading to S3: {e}')
             raise
-            return
+
+        # Return the S3 URL
+        s3_url = f'https://{self.Bucket_Name}.s3.{self.REGION}.amazonaws.com/{os.path.basename(img_path)}'
         return os.path.basename(img_path)
 
 
     def send_yolo5_request(self, s3_url):
         # TODO: Implement the logic to send a request to the yolo5 service
-        yolo5_url = 'http://yolo5:8081/predict'
-        response = requests.post(yolo5_url, json={'imgName': s3_url})
+        yolo5_url = 'http://yolom_container:8081/predict'
+        response = requests.post(yolo5_url, params={'imgName': s3_url})
 
         if response.status_code == 200:
             return response.json()
