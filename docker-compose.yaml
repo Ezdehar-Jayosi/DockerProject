@@ -1,36 +1,7 @@
 version: '3.8'
 
 services:
-  polybot:
-    image: YOUR_POLYBOT_IMAGE
-    container_name: polybot_container
-    environment:
-      - BUCKET_NAME=ezdehar-bucket
-      - S3_BUCKET_URL=ezdehar-bucket
-      - REGION=eu-west-3
-    networks:
-      - app_network
-    depends_on:
-      - mongo
-    volumes:
-      - polybot_data:/app/data
-      - ./aws_credentials:/app/aws_credentials:ro # Mount AWS credentials file
-
-  yolom:
-    image: YOUR_YOLOM_IMAGE
-    container_name: yolom_container
-    environment:
-      - BUCKET_NAME=ezdehar-bucket
-      - S3_BUCKET_URL=ezdehar-bucket
-    networks:
-      - app_network
-    depends_on:
-      - mongo
-    volumes:
-      - yolom_data:/app/data
-      - ./aws_credentials:/app/aws_credentials:ro # Mount AWS credentials file
-
-  mongo:
+  mongo1:
     image: mongo:4.4.25
     command: mongod --replSet myReplicaSet --bind_ip localhost,mongo1
     container_name: mongo1
@@ -66,25 +37,47 @@ services:
     networks:
       - mongoCluster
 
-  mongo-init:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mongo-init
+  polybot:
+    image: polybotm
+    container_name: polybot_container
+    environment:
+      - S3_BUCKET_URL=ezdehar-bucket
+      - BUCKET_NAME=ezdehar-bucket
+      - TELEGRAM_TOKEN=6433223919:AAHBxT1_vhAn4LO-s8aVDgL100wA6YeKlFo
+      - TELEGRAM_APP_URL=https://e4a8-147-235-194-103.ngrok-free.app
+      - REGION=eu-west-3
+    ports:
+      - "8443:8443"
+    networks:
+      - mongoCluster
     depends_on:
       - mongo1
-      - mongo2
-      - mongo3
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - $HOME/.aws:/root/.aws:ro # Mount AWS credentials file
+
+  yolom:
+    image: yolom
+    container_name: yolom_container
+    environment:
+      - BUCKET_NAME=ezdehar-bucket
+      - S3_BUCKET_URL=ezdehar-bucket
+    ports:
+      - "8081:8081"
+    networks:
+      - mongoCluster
+    depends_on:
+      - mongo1
+    volumes:
+      - $HOME/.aws:/root/.aws:ro # Mount AWS credentials file
+
+
+
 
 networks:
-  app_network:
+  mongoCluster:
     driver: bridge
 
 volumes:
-  polybot_data:
-  yolom_data:
   mongo1-data:
   mongo2-data:
   mongo3-data:
