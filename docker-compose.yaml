@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  polybot:
+    image: YOUR_POLYBOT_IMAGE
+    container_name: polybot_container
+    environment:
+      - BUCKET_NAME=ezdehar-bucket
+      - S3_BUCKET_URL=ezdehar-bucket
+      - REGION=eu-west-3
+    networks:
+      - app_network
+    depends_on:
+      - mongo
+    volumes:
+      - polybot_data:/app/data
+      - ./aws_credentials:/app/aws_credentials:ro # Mount AWS credentials file
+
+  yolom:
+    image: YOUR_YOLOM_IMAGE
+    container_name: yolom_container
+    environment:
+      - BUCKET_NAME=ezdehar-bucket
+      - S3_BUCKET_URL=ezdehar-bucket
+    networks:
+      - app_network
+    depends_on:
+      - mongo
+    volumes:
+      - yolom_data:/app/data
+      - ./aws_credentials:/app/aws_credentials:ro # Mount AWS credentials file
+
+  mongo:
+    image: mongo:4.4.25
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo1
+    container_name: mongo1
+    environment:
+      - MONGO_INITDB_DATABASE=EDS  # Specify the initial database name
+    volumes:
+      - mongo1-data:/data/db
+      - /init-replica-set.sh:/docker-entrypoint-initdb.d/init-replica-set.sh
+    ports:
+      - "27017:27017"
+    networks:
+      - mongoCluster
+
+  mongo2:
+    image: mongo:4.4.25
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo2
+    container_name: mongo2
+    volumes:
+      - mongo2-data:/data/db
+    ports:
+      - "27018:27017"
+    networks:
+      - mongoCluster
+
+  mongo3:
+    image: mongo:4.4.25
+    command: mongod --replSet myReplicaSet --bind_ip localhost,mongo3
+    container_name: mongo3
+    volumes:
+      - mongo3-data:/data/db
+    ports:
+      - "27019:27017"
+    networks:
+      - mongoCluster
+
+  mongo-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mongo-init
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  app_network:
+    driver: bridge
+
+volumes:
+  polybot_data:
+  yolom_data:
+  mongo1-data:
+  mongo2-data:
+  mongo3-data:
