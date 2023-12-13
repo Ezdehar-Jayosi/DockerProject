@@ -84,6 +84,7 @@ class ObjectDetectionBot(Bot):
 
         self.Bucket_Name = os.environ['BUCKET_NAME']
         self.REGION = os.environ['REGION']
+
         # self.s3_client = boto3.client('s3', aws_access_key_id=self.s3_access_key, aws_secret_access_key=self.s3_secret_key)
         """"" self.s3_resource = boto3.resource(
             's3',
@@ -92,8 +93,13 @@ class ObjectDetectionBot(Bot):
             aws_secret_access_key=os.environ.get('AWS_SECRET_ACCESS_KEY')
         )"""""
         # Set up AWS S3 client
-        self.s3 = boto3.client('s3', os.environ.get('AWS_ACCESS_KEY_ID'), os.environ.get('AWS_SECRET_ACCESS_KEY'))
 
+        self.s3 = boto3.client(
+            's3',
+            aws_access_key_id=os.environ['AWS_ACCESS_KEY_ID'],
+            aws_secret_access_key=os.environ['AWS_SECRET_ACCESS_KEY'],
+            region_name=os.environ['REGION']
+        )
     def format_prediction_results(self, prediction_result):
         # Extract relevant information from the prediction result
         prediction_id = prediction_result["prediction_id"]

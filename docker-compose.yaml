@@ -7,9 +7,10 @@ services:
     container_name: mongo1
     environment:
       - MONGO_INITDB_DATABASE=EDS  # Specify the initial database name
+      - MONGO_INITDB_SCRIPT=/docker-entrypoint-initdb.d/init-replica-set.sh  # Specify initialization script
     volumes:
       - mongo1-data:/data/db
-      - /init-replica-set.sh:/docker-entrypoint-initdb.d/init-replica-set.sh
+      - ./init-replica-set.sh:/docker-entrypoint-initdb.d/init-replica-set.sh:ro
     ports:
       - "27017:27017"
     networks:
@@ -25,6 +26,8 @@ services:
       - "27018:27017"
     networks:
       - mongoCluster
+    depends_on:
+      - mongo1
 
   mongo3:
     image: mongo:4.4.25
@@ -36,41 +39,58 @@ services:
       - "27019:27017"
     networks:
       - mongoCluster
+    depends_on:
+      - mongo2
+
+
+  mongo-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mongo-i
+    depends_on:
+      - mongo1
+      - mongo2
+      - mongo3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
 
   polybot:
     image: polybotm
     container_name: polybot_container
+    env_file:
+      - .env
     environment:
-      - S3_BUCKET_URL=ezdehar-bucket
-      - BUCKET_NAME=ezdehar-bucket
-      - TELEGRAM_TOKEN=6433223919:AAHBxT1_vhAn4LO-s8aVDgL100wA6YeKlFo
-      - TELEGRAM_APP_URL=https://e4a8-147-235-194-103.ngrok-free.app
-      - REGION=eu-west-3
+      - BUCKET_NAME=${BUCKET_NAME}
+      - S3_BUCKET_URL=${BUCKET_NAME}
+      - REGION=${REGION}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_APP_URL=${TELEGRAM_APP_URL}
+
     ports:
       - "8443:8443"
     networks:
       - mongoCluster
     depends_on:
-      - mongo1
-    volumes:
-      - $HOME/.aws:/root/.aws:ro # Mount AWS credentials file
+      - yolom
+
 
   yolom:
     image: yolom
     container_name: yolom_container
+    env_file:
+      - .env
     environment:
-      - BUCKET_NAME=ezdehar-bucket
-      - S3_BUCKET_URL=ezdehar-bucket
+      - BUCKET_NAME=${BUCKET_NAME}
+      - S3_BUCKET_URL=${BUCKET_NAME}
+      - REGION=${REGION}
+
     ports:
       - "8081:8081"
     networks:
       - mongoCluster
     depends_on:
-      - mongo1
-    volumes:
-      - $HOME/.aws:/root/.aws:ro # Mount AWS credentials file
-
-
+      - mongo-init
 
 
 networks:
