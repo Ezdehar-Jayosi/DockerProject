@@ -3,7 +3,7 @@ from pathlib import Path
 
 import botocore
 from detect import run
-from flask import Flask, request
+from flask import Flask, request, g
 import uuid
 import yaml
 from loguru import logger
@@ -29,15 +29,22 @@ s3 = boto3.client(
 )
 
 # Set up MongoDB client
-try:
+"""try:
     mongo_uri = 'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/?replicaSet=myReplicaSet'
     mongo_client = MongoClient(mongo_uri)
     print("after mongo client")
-    db = mongo_client['EDS']
-    collection = db['ECollection']
+    #db = mongo_client['EDS']
+    #collection = db['ECollection']
 except Exception as e:
     logger.error(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+    exit(1)"""
+def get_mongo():
+    if 'mongo' not in g:
+        # If the connection is not in the global context (g), create a new one
+        mongo_uri = 'mongodb://mongo1:27017,mongo2:27018,mongo3:27019/?replicaSet=myReplicaSet'
+        g.mongo = MongoClient(mongo_uri)
+        logger.info("MongoDB connection established")
+    return g.mongo
 
 with open("data/coco128.yaml", "r") as stream:
     names = yaml.safe_load(stream)['names']
@@ -59,12 +66,16 @@ def before_request():
 def teardown_appcontext(exception=None):
     # This function is called when the application context is popped.
     # It ensures that the MongoDB connection is closed.
-    mongo_client.close()
-    logger.info("MongoDB connection closed")
+    mongo = g.pop('mongo', None)
+    if mongo is not None:
+        mongo.close()
+        logger.info("MongoDB connection closed")
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
     # Generates a UUID for this current prediction HTTP request. This id can be used as a reference in logs to identify and track individual prediction requests.
+
     prediction_id = str(uuid.uuid4())
 
     logger.info(f'prediction: {prediction_id}. start processing')
@@ -145,7 +156,13 @@ def predict():
             'labels': labels,
             'time': time.time()
         }
-
+        try:
+            # Use the get_mongo function to get the MongoDB connection
+            db = get_mongo()['EDS']
+            collection = db['ECollection']
+        except Exception as e:
+            logger.error(f"Failed to connect to MongoDB: {e}")
+            exit(1)
         # TODO store the prediction_summary in MongoDB
         # Modify this line in your Flask app code
         collection.insert_one({"img_name": str(predicted_img_path), "predictions": prediction_summary})

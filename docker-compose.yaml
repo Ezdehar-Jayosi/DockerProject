@@ -56,7 +56,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
 
   polybot:
-    image: polybotm
+    image: ezdeharj/polybot:latest
     container_name: polybot_container
     env_file:
       - .env
@@ -76,7 +76,7 @@ services:
 
 
   yolom:
-    image: yolom
+    image: ezdeharj/yolo5:latest
     container_name: yolom_container
     env_file:
       - .env

@@ -146,11 +146,18 @@ class ObjectDetectionBot(Bot):
 
             if self.is_current_msg_photo(msg):
                 logger.info('Message is a photo.')
+
+                # Send a message acknowledging the receipt of the photo
+                self.send_text(msg['chat']['id'], 'Received your photo. Analyzing...')
+
                 img_path = self.download_user_photo(msg)
 
                 # Upload the photo to S3
                 s3_url = self.upload_to_s3(img_path)
                 logger.info(f'Successfully uploaded to S3: {s3_url}')
+
+                # Send a message before the prediction part
+                self.send_text(msg['chat']['id'], 'Analyzing your photo...')
 
                 # Send a request to the `yolo5` service for prediction
                 prediction_result = self.send_yolo5_request(s3_url)
@@ -163,6 +170,9 @@ class ObjectDetectionBot(Bot):
                 self.send_text(msg['chat']['id'], formatted_results)
             else:
                 logger.info('Message is not a photo.')
+
+                # Send a message informing the user that only photos are supported
+                self.send_text(msg['chat']['id'], 'Sorry, I can only analyze photos. Please send a photo.')
         except Exception as e:
             # Log the exception
             logger.error(f'Error handling message: {e}')
@@ -172,6 +182,7 @@ class ObjectDetectionBot(Bot):
                            'An error occurred while processing your request. Please try again later.')
         finally:
             logger.info('Exiting handle_message.')
+
 
     def upload_to_s3(self, img_path):
         """
